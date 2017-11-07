@@ -31,7 +31,7 @@ Java多线程和内存模型（一）
 **实际上却是一种CPU多核处理临界资源的机制**
 易混点：**并发和并行**
 [Erlang 之父 Joe Armstrong 用一张5岁小孩都能看懂的图解释了并发与并行的区别](https://www.zhihu.com/question/33515481)
-![Alt text](-/s.png)
+![Alt text](https://github.com/kiboooo/-/blob/master/picture/s.png?raw=true)
 
 
 #####3.异步性
@@ -54,7 +54,7 @@ Java多线程和内存模型（一）
 + 申请缓冲区
 + 等待信件（信号）等
 **通常将这种处于阻塞状态的进程也排成一个队列。有的系统则根据阻塞原因的不同而把处于阻塞状态的进程排成多个队列。**
-![Alt text](./1510024054442.png)
+![Alt text](https://github.com/kiboooo/-/blob/master/picture/%E8%BF%9B%E7%A8%8B%E7%8A%B6%E6%80%81%E8%BD%AC%E6%8D%A2.png?raw=true)
 
 现在的操作系统中的进程除了以上的三种基本状态，还多了一种 **”挂起状态“**
 
@@ -83,7 +83,7 @@ Java多线程和内存模型（一）
 
 
 **加入挂起后的进程状态转换图：**
-![Alt text](./1510025665086.png) 
+![Alt text](https://github.com/kiboooo/-/blob/master/picture/%E6%8C%82%E8%B5%B7%E5%90%8E%E7%9A%84%E7%8A%B6%E6%80%81%E8%BD%AC%E6%8D%A2.png?raw=true) 
 
 **静止阻塞的时候，要是当时被阻塞的进程的需求者来到，那么它就会被释放到静止就绪状态；但是没有获得Active() 激活状态下，它依旧没办法进入活动就绪队列，也就没有办法得到执行**
 
@@ -104,11 +104,17 @@ Java多线程和内存模型（一）
 
  #### 需要注意的经典进程同步问题
 **1.生产者--消费者问题**
+
 [维基百科——生产者--消费者问题](https://zh.wikipedia.org/wiki/%E7%94%9F%E4%BA%A7%E8%80%85%E6%B6%88%E8%B4%B9%E8%80%85%E9%97%AE%E9%A2%98)
+
 [C语言——生产者--消费者问题](http://c.biancheng.net/cpp/html/2600.html)
+
 **2.哲学家进餐问题**
+
 [C语言——哲学家进餐问题](http://c.biancheng.net/cpp/html/2602.html)
+
 **3.读者--写者问题**
+
 [C语言——.读者--写者问题](http://c.biancheng.net/cpp/html/2601.html)
 
 
@@ -150,7 +156,7 @@ java线程在运行的生命周期会有6种：
 | TREMINATED（treminated）|   终止状态，表示当前线程已经执行完毕|
 
 #### Java线程生命周期流程图
-![Alt text](./1510067420755.png)
+![Alt text](https://github.com/kiboooo/-/blob/master/picture/java%E7%BA%BF%E7%A8%8B%E7%8A%B6%E6%80%81%E8%BD%AC%E7%A7%BB%E5%9B%BE.png?raw=true)
 
 
      
