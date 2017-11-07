@@ -31,7 +31,7 @@ Java多线程和内存模型（一）
 **实际上却是一种CPU多核处理临界资源的机制**
 易混点：**并发和并行**
 [Erlang 之父 Joe Armstrong 用一张5岁小孩都能看懂的图解释了并发与并行的区别](https://www.zhihu.com/question/33515481)
-![Alt text](./s.png)
+![Alt text](-/s.png)
 
 
 #####3.异步性
