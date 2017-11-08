@@ -158,7 +158,78 @@ java线程在运行的生命周期会有6种：
 #### Java线程生命周期流程图
 ![Alt text](https://github.com/kiboooo/-/blob/master/picture/java%E7%BA%BF%E7%A8%8B%E7%8A%B6%E6%80%81%E8%BD%AC%E7%A7%BB%E5%9B%BE.png?raw=true)
 
+#### Java线程常用方法
+| 方法	|描述	|
+| :-------- | :--------|
+| 	Start方法 	| 	start()用来启动一个线程，当调用start方法后，系统才会开启一个新的线程来执行用户定义的子任务，在这个过程中，会相应的线程分配需要的资源。| 
+| runf法|  run（）方法是不需要永固来调用的，当通过start（）方法启动一个线程之后，当线程获得了CPU执行时间，便进入run方法体中去执行具体的任务。**注意：继承Thread类必须重写run方法，在run方法中定义具体要执行的任务**|
+| sleep方法|  sleep相当于让线程睡眠，交出CPU的占有权，让CPU去执行其他任务，（进入阻塞队列）sleep方法不会释放锁，也就是说如果当前线程持有对某个对象的锁，则即使调用sleep方法，其他线程也无法访问到这个对象|
+| yield方法|  yield方法会让当前线程交出CPU权限，让CPU去执行其他线程。它和Sleep方法类似，同样不会释放锁。但是**yield不能控制具体的交出CPU的时间**，另外，**yield方法只能让拥有相同优先级的线程获取CPU执行时间的机会**。调用yield方法并**不会**让线程进入阻塞状态，而是让线程重回就绪的状态，它只需要**等待重新获取CPU执行时间**，只是和sleep方法的区别|
+| join方法|	join方法就是往线程中添加东西；join方法可以**用于临时加入线程**，例如：在一个线程运算过程中，若满足条件，可以临时加入一个线程，让这个线程运算完，另一个线程再继续执行。|
+|	interrupt方法|	作中断用，**单独调用interrupt方法可以使处于阻塞状态的线程抛出一个异常**，也就是说，它可以用来**中断一个正处于阻塞状态的线程**；直接调用interrupt不能直接中断正在运行的线程，需要用**interrupt方法和isInterrupt**方法来停止正在运行的线程，一般通过增加一个属性isStop来标志是否结束while循环。|
+|	suspend（），resume（）和stop（）方法**（已经过期）**|	这三个方法分别实现了线程的暂停，恢复和终止工作；**suspend**方法在调用后，线程不会释放已经占有的资源（比如锁），而是占着资源进入睡眠状态 ，这样容易引发死锁问题；而**stop（）**方法在终结一个线程时不会保证该线程的资源正常释放，通常是没有给予线程完成资源释放工作的机会，因此会导致程序可能工作在不确定状态下。|
+|	getId|	获取线程ID|
+|	getName和setName|	用来获取和设置线程的名称|
+|	getPriority和setPriority| 	获取和设置线程的优先级|
+|	setDaemon和isDeamon|	用来设置线程是否成为守护线程和判断线程是否是守护线程；守护线程和用户线程的区别：**守护线程依赖于创建它的线程（也就是父线程），用户线程就不依赖**；|	
 
+####流程图对应ThreadState图解：
+![Alt text](./1510154508274.png)
+
+
+####关于Suspend方法过期的替代方法：
+需要用到suspend的地方基本都刻意替换为**wait，notify模式**;
+如果你想要简单实现，刻意考虑JUC提供的工具LockSupport。下面的例子使用LockSupport工具替换上面例子的suspend和resume方法。
+>长久以来对线程阻塞与唤醒经常我们会使用object的wait和notify,除了这种方式，java并发包还提供了另外一种方式对线程进行挂起和恢复，它就是并发包子包locks提供的LockSupport。
+>
+>LockSupport是JDK中比较底层的类，用来创建锁和其他同步工具类的基本线程阻塞原语。java锁和同步器框架的核心AQS:AbstractQueuedSynchronizer，就是通过调用LockSupport.park()和LockSupport.unpark()实现线程的阻塞和唤醒的。
+>
+>LockSupport是不可重入的，如果一个线程连续2次调用LockSupport.park()，那么该线程一定会一直阻塞下去。
+
+>LockSupport很类似于二元信号量(只有1个许可证可供使用)，
+>park（）获取许可；
+>如果这个许可还没有被占用，当前线程获取许可并继续执行；
+>unpark（）释放许可；
+>如果许可已经被占用，当前线程阻塞，等待获取许可。
+```java
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
+
+public class SuspendTest2 {
+    
+    static Object lock = new Object();
+    
+    public static void main(String[] args) {
+        Suspend s1 = new Suspend();
+        Suspend s2 = new Suspend();
+        s1.start();
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        LockSupport.unpark(s1);//释放s1许可
+        s2.start();
+        LockSupport.unpark(s2);//释放s2许可
+        
+    }
+    
+    static class Suspend extends Thread{
+        @Override
+        public void run() {
+            synchronized(lock){
+                try {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                LockSupport.park();//获取线程的许可
+            }
+        }
+    }
+
+}
+```
      
 
 
