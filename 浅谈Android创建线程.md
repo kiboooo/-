@@ -9,6 +9,8 @@
 >  该方法的实现由**非java语言**实现，**比如C**。这个特征并非java所特有，很多其它的编程语言都有这一机制，比如在C＋＋中，你可以用extern "C"告知C＋＋编译器去调用一个C的函数。 
 >  Native Method的一些特性：
 >  +  在定义一个native method时，并不提供实现体（有些像定义一个java interface），因为其实现体是由非java语言在外面实现的。
+>  +  与Java环境外交互，有时Java应用需要与java外面的环境交互。这是本地方法存在的主要原因，你可以想想Java需要与一些底层系统如操作系统或某些硬件交换信息时的情况。本地方法正是这样一种交流机制：它为我们提供了一个非常简洁的接口，而且我们无需去了解Java应用之外的繁琐的细节
+>  + 与操作系统交互，JVM支持着Java语言本身和运行时库，它是Java程序赖以生存的平台，它由一个解释器（解释字节码）和一些连接到本地代码的库组成。然而不管怎样，它毕竟不是一个完整的系统，它经常依赖于一些底层（underneath在下面的）系统的支持。这些底层系统常常是强大的操作系统。通过使用本地方法，我们得以用Java实现了JRE的与底层系统的交互，甚至JVM的一些部分就是用C++写的，还有，如果我们要使用一些java语言本身没有提供封装的操作系统的特性时，我们也需要使用本地方法。
  
  简单实例：
 ```java
@@ -24,7 +26,51 @@ public class IHaveNatives
 > +  一个native method方法可以返回任何java类型，包括非基本类型，而且同样可以进行异常控制。
 > + native method的存在并不会对其他类调用这些本地方法产生任何影响，实际上调用这些方法的其他类甚至不知道它所调用的是一个本地方法。JVM将控制调用本地方法的所有细节。
 
-我们看到最靠近栈顶的java方法调用的 Thread::start, 该方法内部调用了 native 方法 Thread::nativeCreate。如下：
+我们看到最靠近栈顶的java方法调用的 Thread::start, 该方法内部调用了 native 方法 
+```java
+public synchronized void start(){
+    /**
+         * This method is not invoked for the main method thread or "system"
+         * group threads created/set up by the VM. Any new functionality added
+         * to this method in the future may have to also be added to the VM.
+         *
+         * A zero status value corresponds to state "NEW"
+         */
+         对于主方法线程或由VM创建/设置的“系统”组线程，此方法不会被调用。将来添加到这个方法中的任何新功能都可能需要添加到VM中。
+        // Android-changed: throw if 'started' is true
+        if (threadStatus != 0 || started)
+            throw new IllegalThreadStateException();
+
+        /* Notify the group that this thread is about to be started
+         * so that it can be added to the group's list of threads
+         * and the group's unstarted count can be decremented. */
+         * 通知group，该线程即将启动
+			这样就可以将它添加到group的线程列表中
+					这个group的未开始计数可以被取消。
+         
+        group.add(this);
+
+        started = false;
+        try {
+	       
+	        重点是这个，请看下面解析！
+            nativeCreate(this, stackSize, daemon);
+           
+            started = true;
+        } finally {
+            try {
+                if (!started) {
+                    group.threadStartFailed(this);
+                }
+            } catch (Throwable ignore) {
+                /* do nothing. If start0 threw a Throwable then
+                  it will be passed up the call stack */
+            }
+        }
+    }
+```
+
+Thread::nativeCreate。如下：
 
 ```java
 public synchronized void start() {
@@ -33,6 +79,7 @@ public synchronized void start() {
     ...
 }
 ```
+
 `nativeCreate(this,stackSize,Daemon)` 中我们主要关注传入的两个参数：
 +  this : 即 Thread 对象自身；
 
@@ -41,10 +88,10 @@ public synchronized void start() {
 	+  设置为0表示**忽略**之
 	+  文档提到：提高stackSize会减少StackOverFlow的发生，而降低stackSize会减少OutOfMemory的发生;
 	+  另外：**该参数是平台相关的，在一些平台上可能会直接被无视（有点类似Syste::gc的描述，然而目前来看gc在绝大多数平台都生效）**
-+ daemon ： 表明新创建的线程是否是Daemon线程；  
++ daemon ： 表明新创建的线程是否是Daemon（守护进程；后台程序）线程；  
 
 #### 2.从native到ART
-（Android Runtime：Android 4.4新增的一种应用运行模式）
+（ART：Android Runtime：Android 4.4新增的一种应用运行模式）
 native层的代码分析的是Android 8.0的ART虚拟机源码，相关文件会给出全路径。
 
 首先我们看一下 Thread::nativeCreate 的native实现。
