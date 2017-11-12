@@ -36,7 +36,7 @@ public synchronized void start(){
          *
          * A zero status value corresponds to state "NEW"
          */
-         对于主方法线程或由VM创建/设置的“系统”组线程，此方法不会被调用。将来添加到这个方法中的任何新功能都可能需要添加到VM中。
+         对于主方法线程或由VM创建设置的“系统”组线程，此方法不会被调用。将来添加到这个方法中的任何新功能都可能需要添加到VM中。
         // Android-changed: throw if 'started' is true
         if (threadStatus != 0 || started)
             throw new IllegalThreadStateException();
