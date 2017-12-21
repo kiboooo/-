@@ -57,3 +57,10 @@ Android提供了4种启动模式：
 作为singleTask的增强版
 + 打开该Activity时，直接创建一个新的任 务栈，并创建该Activity实例放入新栈中。
 + 一旦该模式的Activity实例已经存在于某个 栈中，任何应用再激活该Activity时都会重用该栈中的实例。
+
+---
+### Fragment与Activity从生命周期的比对
+
+[ Fragment与Activity从生命周期脑图清晰版—](https://github.com/kiboooo/-/blob/master/Fragment%E5%92%8CActivity%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E6%AF%94%E5%AF%B9.png?raw=true)
+
+ ![enter image description here](http://123.207.145.251:8080/SimpleBox/picture/1513859891586.jpg)
