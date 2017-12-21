@@ -50,6 +50,7 @@ MVVM的好处：
 > 低耦合，可重用，独立开发（模块化开发，预留接口交互即可），方便测试（可以针对ViewModel来写测试）
 
 #### 区别和联系脑图：
+
 [MVC,MVP,MVVM区别和联系思维导图-](https://github.com/kiboooo/-/blob/master/MVC,MVP,MVVM%E5%8C%BA%E5%88%AB%E5%92%8C%E8%81%94%E7%B3%BB.png?raw=true)
 
 ![enter image description here](http://123.207.145.251:8080/SimpleBox/picture/1513868056670.jpg)
