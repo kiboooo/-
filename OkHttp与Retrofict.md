@@ -1,0 +1,107 @@
+#  OkHttp与Retrofict
+ 
+## OkHttp:
+> Android 提供了两种与HTTP交互的方式：
+> HttpURLConnection 和 Apache HTTP Client，但是OkHttp更加高效。
+> 但是并不是基于他们来进行实现的；
+> 其特点：
+> 1.支持Google提出的SPDY网路传输协定，主要用来传送网页内容，它共享了一个Socket来处理同一个服务器的所有请求；
+> 2.若SPDY不可用了，则实现了连接池来减少请求的延时；
+> 3.拥有缓存机制，利用缓存响应数据来减少重复的网络请求；
+> 基本流程框图如下：
+![enter image description here](https://upload-images.jianshu.io/upload_images/2540122-e1e23f03d13906e6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
+
+
+###  OkHttp的基本使用：
+#### 1.创建Okhttp的Client对象；
++ 在Buider中可以对Client进行一些链接的状态设定；
++ 例如：
+	+ .connectTimeout(20, TimeUnit.SECONDS)链接超时的时间；
+	+  .readTimeout(20, TimeUnit.SECONDS)，读取超时时间；
+	+  代理，缓存，拦截器等自定义设置；
+#### 2.发起Http请求；
+> 每个	call	只能被执行一次！
+
++ 利用Request.Builder 绑定Url，建立Request (体现了建造者模式的使用)；
++ 通过Client中的newCall来处理Request请求；
++ 在newCall中回调了实现了Call方法的实现类RealCall，并使得RealCall类中持有Client 和 request的引用。
++ 通过RealCall这个实现类，去调用同步请求（execute）还是异步请求(enqueue)
+
+> OkHttp内部维护了三个调用队列
+> readyAsyncCallsA : 存放入未能放入运行队列的调用请求
+> runningSyncCalls：依次同步运行队列内的调用请求
+> runningAsyncCalls：依次异步运行队列内的调用请求
+
+
++ execute：同步调用，通过client中的dispatcher这个事件分发者去处理，调用dispatcher中的execute方法，把RealCall对象放入runningSyncCalls同步调用的双端队列中；
+	+ Dispatcher:  异步HTTP请求的执行策略
+
++ enqueue：异步调用，同样是需要使用dispatcher这个事件分发者中调用enqueue的方法，为了维持call唯一性的原则，创建了一个异步调用（AsyncCall）对象传入enqueue；同时若满足runningAsyncCalls未满（最大并发数未达到），runningCallsForHost共享主机未达到最大值的情况下：除了添加runningAsyncCalls之外，还添加到线程池，并且由线程池去调用。若未满足条件，就放入readyAsyncCalls准备队列，等待请求主机少于最大值再依次放入调用数组和线程池中   。
++ 这两种请求方法，通过captureCallStackTrace给retryAndFollowUpInterceptor初始化了一个callStackTrace堆栈跟踪；
++ RetryAndFollowUpInterceptor 调用  重试和跟踪拦截器，主要功能是负责失败重连，根据检测网络请求异常和响应码的情况，根据这些情况判断是否需要重新进行网络请求；
++ OkHttp内部是使用拦截器来完成请求和相应；而拦截器可以简单理解为“拒绝接受你不想接受的东西”，拦截器是java反射机制的体现，它只对Action起作用，OkHttp用它进行网络调用的Action拦截，再对内容进行修改；
+
+#### 3.返回数据的获取；
++ 通过getResponseWithInterceptorChain()把自定义的拦截器和OkHttp制定的拦截器加入一个interceptors数组；
++ 创建一个拦截器链——RealInterceptorChain，用上述的数组和请求头（Request）作为参数传入；
++ 由于RealInterceptorChain是Interceptor中的一个Chain接口的实现类，通过不断的调用数组中每个Interceptor中的proceed方法，依次调用每种类型的拦截器去处理发出去的请求，直到最后一个拦截器处理完毕，取得的Response再一层层的向上传递；
++ 异步请求的操作，是通过线程池去执行execute，使用的	AsyncCall	是	RealCall	的一个内部类，它实现了	Runnable	，所以可 以被提交到	ExecutorService	上执行，而它在执行时会调用AsyncCall中的execute方法中的getResponseWithInterceptorChain()函数，并把结果通 过	responseCallback传递给上层使用者；
++ 线程池重用维护：
+	+ OkHttp不是在线程池中维护线程的个数，线程是一直在Dispatcher中直接控制。线程池中的请求都是运行中的请求。这也就是说线程的重用不是线程池控制的，通过源码我们发现线程重用的地方是请求结束的地方finished(AsyncCall call) ，而真正的控制是通过其中的promoteCalls方法， 根据maxRequests和maxRequestsPerHost来调整runningAsyncCalls和readyAsyncCalls，使运行中的异步请求不超过两种最大值，并且如果队列有空闲，将就绪状态的请求归类为运行中；
++ 不管同步请求还是异步请求都需要使用Dispatcher中的finished()方法把当前的调用请求从队列中去掉；而异步请求不同的是，需要依靠其中的promoteCalls方法调用把readyAsyncCalls队列中的元素加入异步队列；
++ **Response中的Body数据部分，常常返回的信息特别大，需要使用数据流的方式去访问（提供了string()和bytes() 去一次性读取完毕）**
+	+ 需要注意：
+	+ 每个body只能被消费一次，多次消费会抛出异常
+	+ body使用后必须要关闭，否则会发生资源泄露（string方法中已经实现了close）
+	==可以转入Gson解析Json数据==
+
+> Okhttp实现的拦截器：
+> 1.RetryAndFollowUpInterceptor
+>  这拦截器主要是做重试，网络错误，以及请求重定向的一些操作。
+> 2.BridgeInterceptor
+> 这个拦截器，主要把用户的请求转换为网络的请求，把服务器返回的响应转换 为用户友好的响应的，添加一些头部信息等
+> 3.CacheInterceptor
+> 缓存拦截器，负责读取缓存直接返回、更新缓存的
+> 4.ConnectInterceptor
+> 连接拦截器，和服务器建立连，主要是处理连接服务器，以及http，https的包装
+> 5.CallServerInterceptor
+>  服务拦截器，主要是发送（write、input）、读取（read、output）数据。也是拦截器的最后一个环节，这里就真正拿到了网络的结果了。
+>  **在这里，位置决定了功能，最后一个	Interceptor	一定是负责和服务器实际通讯的， 重定向、缓存等一定是在实际通讯之前的。**
+>  在Interceptor这个链式分布处理机制上，很好体现了责任链这种设计模式；
+>   让每一个Interceptor只处理自己可以处理的任务，把不能处理的部分保留并传递给下一个Interceptor直到被处理完毕；从而把网络请求这个就从Realcall类中抽离出来，只需要专注接受请求成功的结果；（该模式在点击事件TouchEvent中也有体现，通过不同的不同拦截器，拦截消费点击事件）
+
+
+#### 4.Http的缓存；
+> 简单回顾一下LRU（最近最久未使用）置换算法
+> 主要思想：顾名思义，主要把最久未被使用的页面淘汰；
+> 基础实现是赋予每一个页面一个访问字段，用来记录一个页面自上次被访问以来经历过的时间 t，当需要淘汰页面的时候，就是选择当前 t 值最大的；
+> 具体的实现常有寄存器和栈；
+> 寄存器：
+> 一个n位的移位寄存器代表一个页面，当某个页面被调用，把相应寄存器的代表的Rn-1位(最高位)置1 ；
+> 设置一个间隔时间(100ms)，就将整个寄存器右移一位（相当于把值/2）；
+> 当需要页面调度的时候，判断哪一个页面的寄存器最小，就淘汰；
+> 栈：
+> 把每一个调用的页面的页号压入栈中，保证在栈底的元素是最久未使用的，栈顶永远是刚刚被使用的页面；
+> 若原本栈中存在该页号，就把该页号直接移动到栈顶；
+
+在最后一个拦截器CacheInterceptor建立连接之前，我们检查响应是否已经被缓存、缓存是否可用，如果是则直接返回缓存的数据，否则就进行后面的流程，并在返回之前，把网络的数据写入缓存；
+
+内存管理：
+主要涉及 HTTP 协议缓存细节的实现，而具体的缓存逻辑 OkHttp 内置封装了一个 Cache 类，它利用 DiskLruCache，用磁盘上的有限大小空间进行缓存，按照 LRU（最近最久未使用） 算法进行缓存淘汰；
+
+> 我们可以在进行OkHttpClient构造时，设置Cache对象，指定目录和缓存大小；
+> 也可以自定义一个实现了InternalCache接口的拦截器，在里面实现自定义的缓存策略；
+
+#### 流程总结：
++ OkHttpClient 实现 Call.Factory，负责为 Request 创建 Call；
++ RealCall 为具体的 Call 实现，其 enqueue() 异步接口通过 Dispatcher 利用 ExecutorService 实现，
++ 而最终进行网络请求时和同步 execute() 接口一致，都是通过 getResponseWithInterceptorChain() 函数实现；
++ getResponseWithInterceptorChain() 中利用 Interceptor 链条，分层实现缓存、透明压缩、网络 IO 等功能；
+
+---
+## Retrofits
+> Retrofit是一个基于OkHttp实现的网络请求框架；
+> 网络请求的工作本质是由OkHttp完成的，而Retrofit仅负责网络请求接口的封装；
+> 通过注解去配置请求：请求的方法，请求的参数，请求头，返回值等；
+> 可以搭配多种Converter将获得的解析，提供序列化的形式（支持Gson，Jackson，Protobuf等）；
+> 提供对RxJava的支持；
