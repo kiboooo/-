@@ -83,6 +83,7 @@
 > 栈：
 > 把每一个调用的页面的页号压入栈中，保证在栈底的元素是最久未使用的，栈顶永远是刚刚被使用的页面；
 > 若原本栈中存在该页号，就把该页号直接移动到栈顶；
+> **Glide的图片缓存的调度算法也是用LRU，是基于一个LinkedHashMap实现的**
 
 在最后一个拦截器CacheInterceptor建立连接之前，我们检查响应是否已经被缓存、缓存是否可用，如果是则直接返回缓存的数据，否则就进行后面的流程，并在返回之前，把网络的数据写入缓存；
 
@@ -105,3 +106,82 @@
 > 通过注解去配置请求：请求的方法，请求的参数，请求头，返回值等；
 > 可以搭配多种Converter将获得的解析，提供序列化的形式（支持Gson，Jackson，Protobuf等）；
 > 提供对RxJava的支持；
+> 在众多网络请求框架中，性能最好，处理最快；
+> 扩展性差，很多高度封装的必然后果，解析数据都是使用统一的converter,倘若服务器不能给出统一的API格式，将很难进行
+
+向服务器请求API所有的请求框架都一样：
++ build request (API参数设置)
++ executor （执行请求）
++ parse callback （解析数据，返回给上层）
+
+而对应于Retrofit来说：
++ 通过注解去配置API
++ CallAdapter（相当于execute）
++ Converter（解析数据）
+
+调用流程图：
+![enter image description here](http://123.207.145.251:8080/SimpleBox/picture/1514455314611.jpg)
+
+#### 简单使用：
+##### 1.创建 接受服务器返回数据 的类，用于解析数据；
+##### 2.创建 用于网络请求的接口
+> 将 Http请求 抽象成 Java接口：采用 **注解** 描述网络请求参数 和配置网络请求参数 ；
+> + 用动态代理 动态 将该接口的注解 “翻译” 成一个Http请求，最后再执行Http请求；
+> + 每个方法都需要使用注解标注，否则会报错；
+
+ 注解类型图解：
+![enter image description here](http://upload-images.jianshu.io/upload_images/944365-ee747d1e331ed5a4.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+特殊的：@HTTP ：用于替换以上7个注解的作用；
+##### 3.创建 Retrofit实例
+进行一些请求属性的设置；
+##### 4.创建 网络请求接口的实例 并 配置网络请求参数
+最关键的是 retrofit.create 方法，运用了动态代理的技术创建出API的实例；简单来说，就是动态生成接口的实现类，并创建其实例（称之为代理）；代理把对接口的调用转发给 InvocationHandler 实例，而在 InvocationHandler 的实现中，除了执行真正的逻辑（例如再次转发给真正的实现类对象），我们还可以进行一些有用的操作，例如统计执行时间、进行初始化和清理、对接口调用进行检查等。
+
+> 使用动态代理的原因是：
+> 解耦+方便调用不需要写太多的实例接口类；
+> 因为对接口的所有方法的调用都会集中转发到 InvocationHandler#invoke 函数中，我们可以集中进行处理，更方便了
+
+```java
+@Override public Object invoke(Object proxy, Method method, Object... args)
+              throws Throwable {
+            // If the method is a method from Object then defer to normal invocation.
+            if (method.getDeclaringClass() == Object.class) {
+            //例如调用 equals，toString 就直接调用
+              return method.invoke(this, args);
+            }
+            if (platform.isDefaultMethod(method)) {
+            //调用的 default 方法，就是在接口中可以包含方法体，java8新特性
+              return platform.invokeDefaultMethod(method, service, proxy, args);
+            }
+            //重要：
+            //主要是把接口方法的调用转为一次HTTP调用
+            ServiceMethod serviceMethod = loadServiceMethod(method);
+            //一个 ServiceMethod 对象对应于一个 API interface 的一个方法，loadServiceMethod(method) 方法负责加载 ServiceMethod：
+            
+            //封装了OkHttp.Call来进行同步和异步的请求
+            OkHttpCall okHttpCall = new OkHttpCall<>(serviceMethod, args);
+            return serviceMethod.callAdapter.adapt(okHttpCall);
+          }
+```
+
+
+###### 4.1 简单了解动态代理：
+> 所谓的代理：
+> 在某些情况下，我们不希望或是不能直接访问对象 A，而是通过访问一个中介对象 B，由 B 去访问 A 达成目的，这种方式我们就称为代理。这里对象 A 所属类我们称为委托类，也称为被代理类，对象 B 所属类称为代理类。
+
+实现动态代理需要：
++ (1). 新建委托类；
++ (2). 实现InvocationHandler接口，这是负责连接代理类和委托类的中间类必须实现的接口；
++ (3). 通过Proxy类新建代理类对象。
+
+`Proxy.newProxyInstance(service.getClassLoader(), new Class<?>[] { service }, new InvocationHandler() `
+> service.getClassLoader()表示类加载器
+> service 表示委托类的接口，生成代理类时需要实现这些接口
+> new  InvocationHandler实现类对象，负责连接代理类和委托类的中间类
+> 所谓的动态代理，就是双层的静态代理 ；
+> 开发者提供了委托类 B，程序动态生成了代理类 A。开发者还需要提供一个实现了InvocationHandler的子类 C，子类 C 连接代理类 A 和委托类 B，它是代理类 A 的委托类，委托类 B 的代理类。用户直接调用代理类 A 的对象，A 将调用转发给委托类 C，委托类 C 再将调用转发给它的委托类 B
+
+
+##### 5.发送请求（同步/ 异步）
+由于Retrofit是基于OkHttp实现的，它的主要作用是对请求接口的API进行一个封装；
+所以，无论是同步还是异步请求，都是经过Retrofit封装的OkHttpCall类中的OkHttp的引用去调用execute和enqueue方法；最终都是调用Client实例的newCall方法去进行网络请求；
