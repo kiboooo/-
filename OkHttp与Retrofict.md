@@ -12,6 +12,7 @@
 ![enter image description here](https://upload-images.jianshu.io/upload_images/2540122-e1e23f03d13906e6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
 
 
+
 ###  OkHttp的基本使用：
 #### 1.创建Okhttp的Client对象；
 + 在Buider中可以对Client进行一些链接的状态设定；
