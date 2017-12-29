@@ -12,7 +12,6 @@
 ![enter image description here](https://upload-images.jianshu.io/upload_images/2540122-e1e23f03d13906e6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
 
 
-
 ###  OkHttp的基本使用：
 #### 1.创建Okhttp的Client对象；
 + 在Buider中可以对Client进行一些链接的状态设定；
@@ -62,7 +61,7 @@
 > 2.BridgeInterceptor
 > 这个拦截器，主要把用户的请求转换为网络的请求，把服务器返回的响应转换 为用户友好的响应的，添加一些头部信息等
 > 3.CacheInterceptor
-> 缓存拦截器，负责读取缓存直接返回、更新缓存的
+> 缓存拦截器，负责读取缓存直接返回、更新缓存的（缓存逻辑的实现按，网络和内存缓存，需要用户显式声明调用）
 > 4.ConnectInterceptor
 > 连接拦截器，和服务器建立连，主要是处理连接服务器，以及http，https的包装
 > 5.CallServerInterceptor
@@ -143,6 +142,7 @@
 > 因为对接口的所有方法的调用都会集中转发到 InvocationHandler#invoke 函数中，我们可以集中进行处理，更方便了
 
 ```java
+
 @Override public Object invoke(Object proxy, Method method, Object... args)
               throws Throwable {
             // If the method is a method from Object then defer to normal invocation.
@@ -163,6 +163,7 @@
             OkHttpCall okHttpCall = new OkHttpCall<>(serviceMethod, args);
             return serviceMethod.callAdapter.adapt(okHttpCall);
           }
+          
 ```
 
 
