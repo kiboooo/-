@@ -20,7 +20,7 @@ Android 消息机制
 4. 返回到Handler所在线程，目标Handler 收到消息，调用	handleMessage	方法，接收消息，处理消息。
 
 [Handler ——线程间通信，图解：](http://chuantu.biz/t6/193/1514818188x-1404795856.png)
-![enter image description here](http://chuantu.biz/t6/193/1514818188x-1404795856.png)
+![enter image description here](https://github.com/kiboooo/-/blob/master/Android%E6%B6%88%E6%81%AF%E6%9C%BA%E5%88%B6.png?raw=true)
 
 ### Handler内存泄漏解决办法
 > 内存泄漏的原因：
