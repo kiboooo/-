@@ -1,0 +1,82 @@
+###HashMap源码注意点
+> HashMap内部是使用一个默认容量为16的数组来存储数据的，而数组中每一个元素却又是一个链表的头结点，所以，更准确的来说，HashMap内部存储结构是使用哈希表的拉链结构（数组+链表）
+#### HashMap的一些特性：
++ 其中的每一个节点，我们称之为 Entry类型，可以理解为包含内容为 Key Value Hash值 和 next指向的下一个Entry
++  基于Map接口实现，允许null键/值，并不是同步的，也就是说不是线程安全的；而且不保证有序，也不保证顺序不随时间变化。
++  在不发生散列冲突的情况下，HashMap的查询速度是常量级别的 O(1)
++  当发生散列冲突的情况下，将元素存放在对应冲突的哈希表的头节点的链表下面；
++  那么HashMap为了优化当散列冲突过多的情况，某一哈希表下的链表过于冗长，在 java8 之后提出了，当链表的节点大于等于 8 的时候，会将这个链表转化为一个红黑树（二叉排序树）来进行数据存储；以便于减少散列冲突带来的查询时间的增加；
++  由于红黑树的逻辑结构复杂，从源码中，我得知当节点个数小于等于6的时候，红黑树就又会转换为一条链表；
+
+源码观察：
+```java
+//先来看一下关键字段
+
+ static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;//默认的初始容量，aka 16
+ static final float DEFAULT_LOAD_FACTOR = 0.75f;//默认的填充因子
+ static final int TREEIFY_THRESHOLD = 8;//桶上链表转数的最大值
+ static final int UNTREEIFY_THRESHOLD = 6;//红黑树转链表的元素的最小值
+ transient Node<K,V>[] table;//哈希数组，用来进行下标索引查找元素
+ transient int size//此HashMap中所有元素的个数
+```
++ 解决散列冲突问题后，对于大量的数据利用红黑树+定长的结构去存储显然不太现实；于是HashMap就会进行扩容为当前的容量的两倍（16—>32）；
++ 扩容的标准是由所设定的负载因子所决定的，源码上标识为 0.75f ；当所有Entry的数目大于 （当前容量 x 负载因子），就会进行扩容处理；
+
+#### Get函数和Put函数的实现思路：
++ put函数大致的思路为：
+1.	对key的hashCode()做hash，然后再计算index; 
+2.	如果没碰撞直接放到bucket里； 	
+3.	如果碰撞了，以链表的形式存在buckets后；
+4.	如果碰撞导致链表过长(大于等于TREEIFY_THRESHOLD)，就把链表转换成 红黑树； 
+5.	如果节点已经存在就替换old	value(保证key的唯一性) 
+6. 如果bucket满了(超过load	factor*current	capacity)，就要resize
+
++ Get函数的大致思路
+1.	bucket里的第一个节点，直接命中； 
+2.		如果有冲突，则通过key.equals(k)去查找对应的entry
+若为树，则在树中通过key.equals(k)查找，O(logn)；
+若为链表，则在链表中通过key.equals(k)查找，O(n)
+
+#### Hash（）函数的源码解释：
+```java
+static final int hash(Object key) {
+        int h;
+        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+    }
+```
+你知道hash的实现吗？为什么要这样实现
++ 在Java	1.8的实现中，是通过hashCode()的高16位异或低16位实现的：	(h	= k.hashCode())	^	(h	>>>	16)	==（高16bit不变，低16bit和高16bit做了一个异 或）==
++ hash算法的处理机制是将一个键的hashcode的值与他的hashcode右移16位之后的值进行异或运算，高位的信息得以保存，地位的信息中掺杂了高位的信息，这样可以使得出来的数的随机性更大，更不容易散列冲突。
++ 主要是从速度、功效、质量来考虑的，这么做 可以在bucket的n比较小的时候，也能保证考虑到高低bit都参与到hash的计算中， 同时不会有太大的开销
+
+##### 碰撞后，利用链表和树存储结构的查找时间复杂度比较：
+1.	首先根据hashCode()做hash，然后确定bucket的index；==（计算下标：(n	-	1)	&	hash）==
+2.	如果bucket的节点的key不是我们需要的，则通过keys.equals()在链中找。
+
+在Java	8之前的实现中是用链表解决冲突的，在产生碰撞的情况下，进行get时，两 步的时间复杂度是O(1)+O(n)。因此，当碰撞很厉害的时候n很大，O(n)的速度显然 是影响速度的。
+因此在Java	8中，利用红黑树替换链表，这样复杂度就变成了O(1)+O(logn)了，这 样在n很大的时候，能够比较理想的解决这个问题
+
+#### HashTable
+HashTable是基于陈旧的 Dictionary；不允许键值和Key 为 null；
+
+HashMap作为HashTable的轻量级实现，但是HashTable是线程安全的，在源码中，HashTable的每一个方法都被Synchronize 关键字修饰；
+
+#### 常见的HashMap的问题：
++ HashMap的工作原理： 
+	+ 通过hash的方法，通过put和get存储和获取对象。
+	+ 存储对象时，我们将K/V传给put 方法时，它调用hashCode计算hash从而得到bucket位置，进一步存储，会根据当前bucket的占用情况自动调整容量(超过Load	Facotr则resize为原来的2 倍)。
+	+ 获取对象时，我们将K传给get，它调用hashCode计算hash从而得到bucket位 置，并进一步调用equals()方法确定键值对。如果发生碰撞的时候，Hashmap通过 链表将产生碰撞冲突的元素组织起来，
+	+ 在Java	8中，如果一个bucket中碰撞冲突的 元素超过某个限制(默认是8)，则使用红黑树来替换链表，从而提高速度。 
+
++ 你知道get和put的原理吗？equals()和hashCode()的都有什么作用？ 
+	+  通过对key的hashCode()进行hashing，并计算下标(	n-1	&	hash)，从而获得 buckets的位置。
+	+  如果产生碰撞，则利用key.equals()方法去链表或树中去查找对应 的节点
+
++ 为什么要高低位互相异或再求hash？
+	+ 在n	-	1为 15(0x1111)时，其实散列真正生效的只是低4bit的有效位，当然容易碰撞了。
+	+ 因此，设计者想了一个顾全大局的方法(综合考虑了速度、作用、质量)，就是把高 16bit和低16bit异或了一下，增加了复杂度，保证再n比较小的时候的碰撞几率；
+
+	
+
+
+
