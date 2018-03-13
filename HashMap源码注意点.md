@@ -13,7 +13,7 @@
 //先来看一下关键字段
 
  static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;//默认的初始容量，aka 16
- static final float DEFAULT_LOAD_FACTOR = 0.75f;//默认的填充因子
+ static final float DEFAULT_LOAD_FACTOR = 0.75f;//默认的填充因子（可以修改）
  static final int TREEIFY_THRESHOLD = 8;//桶上链表转数的最大值
  static final int UNTREEIFY_THRESHOLD = 6;//红黑树转链表的元素的最小值
  transient Node<K,V>[] table;//哈希数组，用来进行下标索引查找元素
@@ -53,6 +53,7 @@ static final int hash(Object key) {
 1.	首先根据hashCode()做hash，然后确定bucket的index；==（计算下标：(n	-	1)	&	hash）==
 2.	如果bucket的节点的key不是我们需要的，则通过keys.equals()在链中找。
 
+##### 链地址法
 在Java	8之前的实现中是用链表解决冲突的，在产生碰撞的情况下，进行get时，两 步的时间复杂度是O(1)+O(n)。因此，当碰撞很厉害的时候n很大，O(n)的速度显然 是影响速度的。
 因此在Java	8中，利用红黑树替换链表，这样复杂度就变成了O(1)+O(logn)了，这 样在n很大的时候，能够比较理想的解决这个问题
 
@@ -65,7 +66,7 @@ HashMap作为HashTable的轻量级实现，但是HashTable是线程安全的，�
 + HashMap的工作原理： 
 	+ 通过hash的方法，通过put和get存储和获取对象。
 	+ 存储对象时，我们将K/V传给put 方法时，它调用hashCode计算hash从而得到bucket位置，进一步存储，会根据当前bucket的占用情况自动调整容量(超过Load	Facotr则resize为原来的2 倍)。
-	+ 获取对象时，我们将K传给get，它调用hashCode计算hash从而得到bucket位 置，并进一步调用equals()方法确定键值对。如果发生碰撞的时候，Hashmap通过 链表将产生碰撞冲突的元素组织起来，
+	+ 获取对象时，我们将K传给get，它调用hashCode计算hash从而得到bucket位 置，并进一步调用equals()方法确定键值对。如果发生碰撞的时候，Hashmap通过 链表将产生碰撞冲突的元素组织起来。
 	+ 在Java	8中，如果一个bucket中碰撞冲突的 元素超过某个限制(默认是8)，则使用红黑树来替换链表，从而提高速度。 
 
 + 你知道get和put的原理吗？equals()和hashCode()的都有什么作用？ 
@@ -75,6 +76,32 @@ HashMap作为HashTable的轻量级实现，但是HashTable是线程安全的，�
 + 为什么要高低位互相异或再求hash？
 	+ 在n	-	1为 15(0x1111)时，其实散列真正生效的只是低4bit的有效位，当然容易碰撞了。
 	+ 因此，设计者想了一个顾全大局的方法(综合考虑了速度、作用、质量)，就是把高 16bit和低16bit异或了一下，增加了复杂度，保证再n比较小的时候的碰撞几率；
+
+#####  HashMap和ConcurrentHashMap的区别联系？
+[救急->ConcurrentHashMap](http://www.jasongj.com/java/concurrenthashmap/)
+>ConcurrentHashMap是并发包（Concurrent）的重要成员；所以它是一种线程安全，并且支持高效并发的 HashMap；
+> 与之相似的 HashTable 虽然也是线程同步，但是其使用的全局锁，不得不使得我们关注它的性能；
+
+> 理想状态下：
+> 支持16个线程执行并发写操作及任意数量的线程的读操作；
+
+区别：
+concurrent与 hashTable 一样 ，不允许key 和 value 的值为null；
+
+线程安全
+
+
+
+##### HashMap线程不安全主要体现在 resize （扩容的时候）容易发生死循环；
+形成的原因：
++ 多并发情况下多个Map扩容时，多个线程对同一个捅进行操作，当某个线程的时间片用完等产生被挂起操作，第二个线程对整个Map扩容完毕，可这时，第一个线程被唤起执行，导致按照顺序执行的时候容易把该捅弄成环；
+
+##### concurrentHashMap Java7和Java8的结构改变；
+Java7：基于分段锁，借助多个 segment 数组，里面存放着多个小的 hashMap ；
+在读写key 的时候 ，哈希值的高N位对Segment个数取模从而得到该Key应该属于哪个Segment
+> Segment 类继承于 ReentrantLock 类，从而使得 Segment 对象能充当锁的角色
+
+Java 8 : 摒弃了分段锁的方案，使用大数组提高了哈希碰撞下的寻址性能；（segment 的寻址麻烦）
 
 ### 关于内存优化角度思考的HashMap替换问题：
 HashMap为什么需要根据需求进行内存优化的原因：
@@ -94,6 +121,7 @@ HashMap为什么需要根据需求进行内存优化的原因：
 + 千级别以内，数据结构类型为Map；
 
 也是用两个数组分别存储 key 的hash 值和 value值。也会对key使用二分法进行从小到大排序，在添加、删除、查找数据的时候都是先使用二分查找法得到相应的index，然后通过index来进行添加、查找、删除等操作
+
 	
 
 
