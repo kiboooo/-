@@ -49,6 +49,12 @@
 
 #### 广播的发送：
 > 通过 sendBroadcast（Intent） 的方式，把相应的 Intent 发送出去；
+
+##### 广播的传播的数据的传播方式：
++ 常用的通过 Intent 传递数据（intent.putExtra()）
++  有序广播可以通过发送广播的时，填写的参数进行数据传递；
+	+  initialData：传一个字符串数据。对应的在BroadcastReceiver中通过String resultData = getResultData()取得数据；
+	+  initialExtras：传一个Bundle对象，也就是可以传多种类型的数据。对应的在BroadcastReceiver中通过Bundle bundle = getResultExtras(false)取得Bundle对象，然后再通过bundle的各种get方法取得数据
  
 #####  广播的类型：
 + normal Broadcast 普通广播
