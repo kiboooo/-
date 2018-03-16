@@ -1,21 +1,24 @@
 ## Service
 与Activity同为Context（上下文环境）的子类；
+在没有主动设定情况下，
 它运行在UI线程中，不能直接使用耗时操作；
+Service 的启动 和  停止的都是异步操作； 
 
 #### 种类：
 ##### 按照运行地点分类；
 LocalService本地服务：依附在主进程中；
 
-RemoteService远程服务：独立进程；需要通过AIDL使用IPC通信；
+RemoteService远程服务：独立进程；需要通过AIDL（接口定义语言）使用IPC通信；
 
 ##### 按照运行类型分类：
-前台服务：通知栏Notification，对用户有一定的通知作用；
+前台服务：通知栏Notification，对用户有一定的通知作用（将一般的服务的所在的进程级别提升了，即使用 startForeground 去启动，附有通知）；
 
 后台服务：不被用户所查知，并完成一系列功能的服务，天气更新，邮件同步等；
 
 ##### 按照使用方式分:
 startService启动服务，启动一个后台服务，不进行通信，利用stopService停止；
-与之相对应的是 使用bindService启动的服务，需要进行通信，bindService停止；
+与之相对应的是 使用bindService启动的服务，需要进行通信，unbindService停止；
+
 
 两种启动方式区别从他们的生命周期可以看出：
 ![Alt text](./1520168630685.png)
@@ -40,16 +43,21 @@ startService启动服务，启动一个后台服务，不进行通信，利用st
 另外是使用	bindService	，
 前者的缺点是如果交流较为频繁，容易造 成性能上的问题，并且	BroadcastReceiver	本身执行代码的时间是很短的（也许执 行到一半，后面的代码便不会执行），而后者则没有这些问题，因此我们肯定选择 使用	bindService（这个时候你便同时在使用	startService	和	bindService	了，这在 Activity	中更新	Service	的某些运行状态是相当有用的
 
-#### IntentService 特征：
-会创建独立的 worker 线程 来处理所有 Intent 请求；
-会创建独立的 Worker 线程来处理 onHandlerIntent（）方法实现代码，无需处理多线程的问题
-处理完逻辑后，IntentService 会自动停止
-就是每次调用onStartCommand的时候，通过mServiceHandler发送一个消息，消息中包含我们的intent。然后在该mServiceHandler的handleMessage中去回调onHandleIntent(intent);就可以了。
+### IntentService 
+> 一个基于 Service 的类，用来处理异步请求。 可以通过 startService 提交请求；他会在需要的时候创建，当完成所有的任务以后自己关闭，且请求是在工作线程中处理；
 
-那么我们具体看一下源码，果然是这样，onStartCommand中回调了onStart，onStart中通过mServiceHandler发送消息到该handler的handleMessage中去。最后handleMessage中回调onHandleIntent(intent)。
+继承 IntentService 类的时候，需要重写 onHandleIntent 方法，根据传入的 Intent 进行相应的逻辑操作；
+
+从源码中发现 在onStartCommand中回调了onStart，onStart中通过HandlerThread创建的mServiceHandler发送消息到该handler的handleMessage中去。最后handleMessage中回调onHandleIntent(intent)。再继承了IntentThread 的类中实现 onHandlerIntent 的代码逻辑，起到了与另一个子线程服务通信目的；
 
 注意下：回调完成后回调用 stopSelf(msg.arg1)，注意这个msg.arg1是个int值，相当于一个请求的唯一标识。每发送一个请求，会生成一个唯一的标识，然后将请求放入队列，当全部执行完成(最后一个请求也就相当于getLastStartId == startId)，或者当前发送的标识是最近发出的那一个（getLastStartId == startId），则会销毁我们的Service.
 
 如果传入的是-1则直接销毁。
 
 那么，当任务完成销毁Service回调onDestory，可以看到在onDestroy中释放了我们的Looper:mServiceLooper.quit()。
+ 
+
+#### IntentService 特征：
++ 会创建独立的 worker 线程 处理所有 Intent 请求；
++ 会创建独立的 Worker 线程来处理 onHandlerIntent（）方法实现代码，无需处理多线程的问题
++ 处理完逻辑后，IntentService 会自动停止
