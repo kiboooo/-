@@ -234,6 +234,19 @@ public class SuspendTest2 {
 
 }
 ```
+
+### 操作系统的 IPC
++ 管道
++ 消息队列
++ 信号量
++ 共享内存
+
+### Android 中 IPC
++ Binder
+	+ 需要实现序列化接口：Serializable & parcelable
++ Socket 
++ ContentProvider
++ Messenger  
      
 
 
