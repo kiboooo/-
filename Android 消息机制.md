@@ -61,3 +61,25 @@ Android 消息机制
         myHandler.removeCallbacksAndMessages(null);  
     }  
 ```
+
+#### HandlerThread : 自带 looper，handler ，Messager 的子线程；
+> 同步的
+
+HandlerThread 源码中，利用 wait 和 notifyAll（）的方法，控制了UI线程 和 开启的子线程同步性；
+
+使用方法：
+```java
+HandlerThread mht = new HandlerThread("ThreadName")；
+        mht.start();
+        Handler UIhandler = new Handler(mht.getLooper()){
+         @Override
+            public void handleMessage(Message msg)
+            {
+                //这个 message 就是线程中的Message；
+                }
+            }
+        };
+```
+
+创建 HandlerThread 对象， 构造函数输入该线程的名字，然后获取子线程的 looper 创建 Handler ，创建 HanderMessage 进行逻辑处理；取出来的消息是子线程的消息；
+
