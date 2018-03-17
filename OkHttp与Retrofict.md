@@ -1,5 +1,12 @@
 #  OkHttp与Retrofict
  
+
+[流行网络请求框架](https://upload-images.jianshu.io/upload_images/944365-f48072d21b613aaf.png)
+
+![enter image description here](https://upload-images.jianshu.io/upload_images/944365-f48072d21b613aaf.png)
+
+
+ 
 ## OkHttp:
 > Android 提供了两种与HTTP交互的方式：
 > HttpURLConnection 和 Apache HTTP Client，但是OkHttp更加高效。
