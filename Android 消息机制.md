@@ -12,10 +12,13 @@ Android 消息机制
 + Handler：消息辅助类，主要功能向消息池发送各种消息事件（Handler.sendMessage） 和 处理相应的消息事件（Handler.handleMessage）
 
 + Looper：不断循环执行(Looper.loop)，从MessageQueue中读取消息，按分发机制 将消息分发给目标处理
+	+ UI线程中的 Looper 是在 程序启动的时候初始化的，系统给该程序分配进程管理资源，其中有个ActivityThread 负责调度和执行该线程中运行的四大组件，它的 入口就是 main 函数；
+	+ main函数中就会调用 `Looper.prepareMainLooper();` 然后它会调用 perpare（） 生成一个 looper；
+	+ 一个线程中只允许由一个 Looper
 
 ##### 消息机制的运行流程
-1. 当Handler发送消息时，将会调 用	MessageQueue.enqueueMessage	，向消息队列中添加消息。
-2. 当通 过	Looper.loop	开启循环后，会不断地从线程池中读取消息，即调 用	MessageQueue.next
+1. 当Handler发送消息时，将会调用send 或者 post 相应的方法，回掉给sendMessageDelayed中调用 sendMessageAtTime 方法中的 MessageQueue.enqueueMessage	，向消息队列中添加消息。
+2. 当通过	Looper.loop	开启循环后，会不断地从线程池中读取消息，即调用	MessageQueue.next
 3. 调用目标Handler（即发送该消息的Handler） 的	dispatchMessage	方法传递消息
 4. 返回到Handler所在线程，目标Handler 收到消息，调用	handleMessage	方法，接收消息，处理消息。
 
