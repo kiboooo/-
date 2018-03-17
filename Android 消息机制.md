@@ -30,8 +30,10 @@ Android 消息机制
 > 在java中非静态内部类和匿名内部类都会隐式持有当前类的外部引用；
 >  由于Handler是非静态内部类所以其持有当前Activity的隐式引用（Message持有Handler的引用）；
 >  如果Handler没有被释放，其所持有的外部引用也就是Activity也不可能被释放; 导致GC的时候无法回收；
+>  例如 Handler 中的 enqueueMessage 方法中， msg.target = this 把 Handler 的引用传递给了 target，只有道 recycleUnchecked 方法， 这个引用才会被释放；
 
 由于知道了导致这种现象的原因，我们可以从两个方面解决：
+
 ##### 1. 使用静态内部类+弱引用的形式，解决外部强引用持有的问题；
 因为弱引用只要发生GC就可以保证被回收；
 示例：
