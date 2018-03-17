@@ -63,23 +63,44 @@ Android 消息机制
 ```
 
 #### HandlerThread : 自带 looper，handler ，Messager 的子线程；
-> 同步的
-
-HandlerThread 源码中，利用 wait 和 notifyAll（）的方法，控制了UI线程 和 开启的子线程同步性；
+> HandlerThread 源码中，利用 wait 和 notifyAll（）的方法，控制了UI线程 和 开启的子线程同步性；
+> 会自主创建线程 ，  looper， handler 和 messageQueue；处理消息，以及当任务执行完成后就会自动销毁； 
 
 使用方法：
 ```java
 HandlerThread mht = new HandlerThread("ThreadName")；
+//创建实例对象，参数就是当前线程的名字；
         mht.start();
         Handler UIhandler = new Handler(mht.getLooper()){
          @Override
             public void handleMessage(Message msg)
             {
-                //这个 message 就是线程中的Message；
+                //这个 message 就是线程中的MessageQueue 消息队列；
                 }
             }
         };
 ```
 
-创建 HandlerThread 对象， 构造函数输入该线程的名字，然后获取子线程的 looper 创建 Handler ，创建 HanderMessage 进行逻辑处理；取出来的消息是子线程的消息；
+创建 HandlerThread 对象， 构造函数输入该线程的名字，调用 start 方法，运行其重写的 run 方法，创建 looper 和 消息队列，然后获取子线程的 looper 创建 Handler ，创建 HanderMessage 进行逻辑处理；取出来的消息是子线程中待处理的消息；
+可以其中进行耗时的请求操作，操作完成后，可以通过 UI线程的 Handler  发送完成消息；
 
+##### 同步的维持：
+```java
+@Override  
+public void run() {  
+        mTid = Process.myTid();  
+        Looper.prepare();  
+        synchronized (this) {  
+            mLooper = Looper.myLooper();  
+            notifyAll(); //唤醒等待线程  
+        }  
+        Process.setThreadPriority(mPriority);  
+        onLooperPrepared();  
+        Looper.loop();  
+        mTid = -1;  
+    }  
+```
+锁住当前对象，保持同步
+
+##### 获取Looper 的时候为什么要延时？
+因为创建 Looper 是再子线程中 需要用 wait 命令 等到 Looper 的创建完成；才能从UI线程中获取才不会出错；
