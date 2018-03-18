@@ -61,7 +61,7 @@ public int update(Uri uri, ContentValues values, String	select ion,	String[]	sel
 public Cursor query(Uri uri, String[] projection, String selection,	String[] selectionArgs, String sortOrder)　			
 //	外部应用	获取	ContentProvider	中的数
 ```
-这四个方法都是由外部进程进行回调，并运行在ContentProvider 进程的 Binder 线程池中；
+这四个方法都是由外部进程进行回调，并运行在==ContentProvider 进程的 Binder 线程池中==；
 
 当出现多线程并发访问的时候，需要实现线程同步；
 
@@ -91,7 +91,9 @@ public Cursor query(Uri uri, String[] projection, String selection,	String[] sel
 
 #### 优点：
 1 . 为应用间的数据交互提供了一个安全的环境；
-2. 访问简单和高效；
+
+2 . 访问简单和高效；
+
 > 对比：
 > 文件：需要不断的读写数据
 > Sharedpreferences 需要使用它的API来读写；
@@ -182,6 +184,25 @@ mode_ flags ： 授权类型；
 #### 提供 Content URI 给其他应用
 + startActivity 或者 setResult 传递；
 + 如果你需要一次性传递多个 URI 对象，可以使用 intent 对象提供的 setClipData() 方法，并且 setFlags() 方法设置的权限适用于所有 Content URIs。
+
+### 常见的面试问题：
++ ContentProvider是如何实现数据共享的?
+	+ 通过 ContentResolver 调用系统提供URI 进行数据获取交互（通讯录，相册等）
+	+ 自定义 ContentProvider 设置唯一标识，重写 insert，delete ，update ，query 等核心方法；
+	+ 在 manifests 文件中注册；
+	+ 通过 contentResolver 调用；
+
++ ContentProVider 和 SQL 的区别：
+	+ ContentProvider 屏蔽了数据存储的细节，内部实现透明化，用户只需关心 uri 即可；
+	+ ContentProvider 实现不同app 的数据共享，sql 只能是自己的程序才能访问；
+	+ ContentProvider 还能增删本地的文件，xml 等信息；
+
++ ContentProvider,ContentResolver,ContentObserver之间的关系？
+	+ Provider ： 内容提供者，定义增删改查 和 存储结构关联；
+	+ Resolver ： 内容解析者，通过该方法调用Provider 关联的数据，
+	+ Observer ： 观察者，另一个 app 可以监听数据改变的消息；
+		+ getContentResolver.notifyChange(uri):在内容提供者里面的各个方法添加,这样就能发出消息
+		+ getContentResolver.registerContentOberver():进行监听注册,一个想观察内容变化的app,在观察者创建时就注册
 
 
 
