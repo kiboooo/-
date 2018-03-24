@@ -16,7 +16,7 @@
 实现机制（接受和发送方 异步 执行）：
 + 广播接受者通过 Binder 在 AMS 中完成注册；
 + 发送者 通过 Binder 机制向  AMS 发送广播；
-+ AMS 通过接受到的广播，从已注册列表中寻找合适的接收者；（寻找依据：IntentFilter 过滤器，Permission 权限）
++ AMS（在 framework 层） 通过接受到的广播，从已注册列表中寻找合适的接收者；（寻找依据：IntentFilter 过滤器，Permission 权限）
 + 找到合适的接收者后，将广播发送到相应的消息循环队列中；
 + 接收者接受到广播的时候，会回掉 onReceive（）
 
@@ -46,6 +46,7 @@
 #### 注意点：
 + 面向 Android 7.0 开发的应用不会收到 CONNECTIVITY_ACTION 广播，即使它们已有清单条目来请求接受这些事件的通知。在前台运行的应用如果使用  BroadcastReceiver 请求接收通知，则仍可以在主线程中侦听 CONNECTIVITY_CHANGE。
 + 应用无法发送或接收 ACTION_NEW_PICTURE 或 ACTION_NEW_VIDEO 广播。此项优化会影响所有应用，而不仅仅是面向 Android 7.0 的应用
++ 使用ConnectivityManager 和 NetworkInfo 方法也可以监听和返回相应的网络状态和连接速率；
 
 #### 广播的发送：
 > 通过 sendBroadcast（Intent） 的方式，把相应的 Intent 发送出去；
