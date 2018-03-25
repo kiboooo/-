@@ -31,6 +31,8 @@ Android中进程保活
 > + 白色保活：启动前台service，利用 Notification；
 > + 灰色保活：利用系统的漏洞启动前台Service；
 
+![enter image description here](http://upload-images.jianshu.io/upload_images/944365-314b51661a6945d1.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
 #### 黑色保活：
 场景1：开机，网络切换，拍照，拍视频，利用系统产生广播唤醒App；
 场景2：介入第三方SDK 也会唤醒相应的应用的app 进程；比如支付宝的SDK可以唤醒支付宝等付款界面，高德地图的SDK可以利用定位信息唤醒高德地图；
@@ -50,3 +52,5 @@ Android中进程保活
 同时启动同一个ID的 前台Service ，再将后启动的Service stop 处理 。
 即在一个服务的 starCommand方法中 启动另一个同Id 前台服务，然后将后启动的服务在其 onStatCommand 方法中调用 stopSelf 方法,就会移除通知栏的图标，使得用户无感知；
 
+##### 手Q 采用1像素保活策略；微信采用心跳包机制，初始4.5min ，每次增长1 min；
+[手把手教你实现 自适应的心跳保活机制](https://blog.csdn.net/carson_ho/article/details/79522975)
