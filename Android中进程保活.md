@@ -8,11 +8,11 @@ Android中进程保活
 前台进程-》可见进程-》服务进程-》后台进程-》空进程；
 从高到低依次递减：
 1. 前台进程：
-	+ 执行完OnResume() 方法的Activity
-	+ 拥有Service 绑定到用户正在交互的Activity
-	+ 调用 setForeground 的前台服务
-	+ 正执行一个生命周期回调的Service（onCreate()、onStart() 或 onDestroy()）
-	+ 执行 onReceive 方法的 广播；
++ 执行完OnResume() 方法的Activity
++ 拥有Service 绑定到用户正在交互的Activity
++ 调用 setForeground 的前台服务
++ 正执行一个生命周期回调的Service（onCreate()、onStart() 或 onDestroy()）
++ 执行 onReceive 方法的 广播；
 2. 可见进程：
 + 不在前台但是用户可见的Activity （调用了 onPause）
 + 绑定了前台Activity的 Service ；
@@ -20,7 +20,7 @@ Android中进程保活
 3. 服务进程：
 +  startService 启动的服务（播放音乐，或者网络下载）
 4. 后台进程：
-	+ 调用了 onStop方法后的Activity
++ 调用了 onStop方法后的Activity
 5. 空进程：唯一目的就是用来做缓存；
 
 ##### Android中的进程回收主要 lowmemorykiller，是一种根据 OOM_ADJ 阀值级别触发相应力度的内存回收机制；
