@@ -88,3 +88,91 @@ public boolean dispatchTouchEvent(MotionEvent ev) {
 
 #### 注意点：
 1. 当一个 viewGroup A 拦截了一个半路的事件 （如 move），这个事件将会被系统变成一个CANCEL事件传递给之前处理该事件的子 View ； 该事件不会再传递给 ViewGroup A 的 onTouchEvent ( ) ；只有再到来的新的事件列 才会传递给 ViewGroup A 的 onTouchEvent（）；
+
+### 源码分析：
+点击事件的分发：
+Activity （Window） -->  ViewGroup --> View
+对于 Activity 上来说；
+```java
+public boolean dispatchTouchEvent(MotionEvent ev) {
+        //关注点1
+        //一般事件列开始都是DOWN，所以这里基本是true
+        if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+            //关注点2
+            onUserInteraction();
+            //作为一个空方法；当Activity 在栈顶的时候，触屏点击按home，back，menu 等键都会触发这个方法；也就是说它会用于屏保。
+        }
+        //关注点3
+        if (getWindow().superDispatchTouchEvent(ev)) {
+        //调用 phoneWindow 的 dispatchTouchEvent 方法，通过其调用ViewGroup 的 dispatchTouchEvent 方法，做到了，点击事件的传递的目的；
+            return true;
+        }
+        return onTouchEvent(ev);
+    }
+```
+由上述源码分析：
+当一个点击事件发生的时候，Activity事件分发调用顺序如下：
+1. 事件最先传到  Activity 的 dispatchTouchEvent 进行事件的分发放
+2. 调用 PhoneWindow 的 superDispatchTouchEvent（）；
+3. 再分发到DecorView 的 superDispatchTouchEvent（）；
+4. 最终调用ViewGroup 的 dispatchTouchEvent()
+
+#### 那么就来看看 ViewGroup 方法事件分发；
+
+```java
+// 发生ACTION_DOWN事件或者已经发生过ACTION_DOWN,并且将mFirstTouchTarget赋值，才进入此区域，主要功能是拦截器
+        final boolean intercepted;
+        if (actionMasked == MotionEvent.ACTION_DOWN|| mFirstTouchTarget != null) {
+            //disallowIntercept：是否禁用事件拦截的功能(默认是false),即不禁用
+            //可以在子View通过调用requestDisallowInterceptTouchEvent方法对这个值进行修改，不让该View拦截事件
+            final boolean disallowIntercept = (mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0;
+            //默认情况下会进入该方法
+            if (!disallowIntercept) {
+                //调用拦截方法
+                intercepted = onInterceptTouchEvent(ev); 
+                ev.setAction(action);
+            } else {
+                intercepted = false;
+            }
+        } else {
+            // 当没有触摸targets，且不是down事件时，开始持续拦截触摸。
+            intercepted = true;
+        }
+```
+ViewGroup中通过 onInterceptTouchEvent () 对事件进行拦截处理：
++ onInterceptTouchEvent方法返回true代表拦截事件，即不允许事件继续向子View传递；
++ 返回false 代表不拦截事件，即允许事件继续向子View传递
++ 子View中如果将传递的事件消费掉，ViewGroup中将无法接收到任何事件；
+
+#### 而对于 View 来说
+```java
+public boolean dispatchTouchEvent(MotionEvent event) {  
+    if (mOnTouchListener != null && (mViewFlags & ENABLED_MASK) == ENABLED &&  
+            mOnTouchListener.onTouch(this, event)) {  
+        return true;  
+    }  
+    return onTouchEvent(event);  
+}
+```
+也就是说当这三个条件都为真的时候，该方法才会返回 true 去处理事件；当不满足的时候，就会调用 TouchEvent；
+
+第一个条件： mOnTouchListener != null
+```java
+//mOnTouchListener是在View类下setOnTouchListener方法里赋值的
+public void setOnTouchListener(OnTouchListener l) { 
+
+//即只要我们给控件注册了Touch事件，mOnTouchListener就一定被赋值（不为空）
+    mOnTouchListener = l;  
+}
+```
+第二个条件: (mViewFlags & ENABLED_MASK) == ENABLED
+判断当前的点击是否 enable，很多View 都是默认 enable；
+
+第三个条件：mOnTouchListener. onTouch（this，event）
+回调控件注册 Touch 事件时的 onTouch 方法
+由该方法的返回值，决定三个条件的成功与否；
+
+结论：
++ onTouch 的执行高于 onClick，因为是先判断onTouch 的回调；
++ 如果在回调 onTouch 返回false ，就会让 dispatchTouchEvent 方法返回 false ，就会执行 o'nTouchEvent ，当设置了点击事件，就会在 performClick() 方法里回调 onClick；
++ 当 o'nTouch 中返回 true，dispatchTouchEvent 返回 true ，就不会执行 onTouchEvent 和 o'nClick;

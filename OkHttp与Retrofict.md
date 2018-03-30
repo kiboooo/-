@@ -1,12 +1,10 @@
 #  OkHttp与Retrofict
- 
 
 [流行网络请求框架](https://upload-images.jianshu.io/upload_images/944365-f48072d21b613aaf.png)
 
 ![enter image description here](https://upload-images.jianshu.io/upload_images/944365-f48072d21b613aaf.png)
 
 
- 
 ## OkHttp:
 > Android 提供了两种与HTTP交互的方式：
 > HttpURLConnection 和 Apache HTTP Client，但是OkHttp更加高效。
@@ -20,22 +18,33 @@
 
 
 ###  OkHttp的基本使用：
+> 运用责任链模式，每层都使用相应的拦截器进行逻辑处理；
+> 请求流程：
+> + OkHttpClient 实现 Call.Factory，负责为 Request 创建 Call；
++ RealCall 为具体的 Call 实现，其 enqueue() 异步接口通过 Dispatcher 利用 ExecutorService 实现，
++ 而最终进行网络请求时和同步 execute() 接口一致，都是通过 getResponseWithInterceptorChain() 函数实现；
++ getResponseWithInterceptorChain() 中利用 Interceptor 链条，分层实现缓存、透明压缩、网络 IO 等功能；
+
 #### 1.创建Okhttp的Client对象；
 + 在Buider中可以对Client进行一些链接的状态设定；
 + 例如：
 	+ .connectTimeout(20, TimeUnit.SECONDS)链接超时的时间；
 	+  .readTimeout(20, TimeUnit.SECONDS)，读取超时时间；
 	+  代理，缓存，拦截器等自定义设置；
+
 #### 2.发起Http请求；
 > 每个	call	只能被执行一次！
 
 + 利用Request.Builder 绑定Url，建立Request (体现了建造者模式的使用)；
+	+ 建造者模式：将一个复杂对象的构建与它表示进行分离，使得同样的构建过程可以创建不同的表示；
+	+ 优点：良好的封装性；独立，容易扩展；
+	+ 缺点：会产生多余的Builder 对象以及 Director 对象，消耗内存；对象创建过程被暴露；
 + 通过Client中的newCall来处理Request请求；
-+ 在newCall中回调了实现了Call方法的实现类RealCall，并使得RealCall类中持有Client 和 request的引用。
-+ 通过RealCall这个实现类，去调用同步请求（execute）还是异步请求(enqueue)
++ 在newCall中回调了实现了Call方法的实现类RealCall，并使得RealCall类中持有Client 和 request的引用；
++ 通过RealCall这个实现类，去调用同步请求（execute）还是异步请求 ( enqueue ) ；
 
 > OkHttp内部维护了三个调用队列
-> readyAsyncCallsA : 存放入未能放入运行队列的调用请求
+> readyAsyncCalls : 存放入未能放入运行队列的调用请求
 > runningSyncCalls：依次同步运行队列内的调用请求
 > runningAsyncCalls：依次异步运行队列内的调用请求
 
@@ -43,7 +52,7 @@
 + execute：同步调用，通过client中的dispatcher这个事件分发者去处理，调用dispatcher中的execute方法，把RealCall对象放入runningSyncCalls同步调用的双端队列中；通过getResponseWithInterceptorChain获取请求返回的结果 Response ;
 
 
-+ enqueue：异步调用，同样是需要使用dispatcher这个事件分发者中调用enqueue的方法，为了维持call唯一性的原则，创建了一个异步调用（AsyncCall）对象传入enqueue；同时若满足runningAsyncCalls异步队列未满（最大并发数未达到 64 个），runningCallsForHost共享主机未达到最大值（5 个）的情况下：除了添加runningAsyncCalls之外，还添加到线程池，并且由线程池，通过 RealCall 的内部类 AsyncCall 调用 execute 方法 。若未满足条件，就放入readyAsyncCalls准备队列，等待请求主机少于最大值再依次放入调用数组和线程池中 。
++ enqueue：异步调用，同样是需要使用dispatcher这个事件分发者中调用enqueue的方法，为了维持call唯一性的原则，创建了一个异步调用（AsyncCall）对象传入enqueue；同时若满足runningAsyncCalls异步队列未满（最大并发数未达到 64 个），runningCallsForHost共享主机未达到最大值（5 个）的情况下：除了添加runningAsyncCalls之外，还添加到线程池，并且由线程池（线程池的线程等待时间为60s，大于这个时间线程回退出），通过 RealCall 的内部类 AsyncCall 调用 execute 方法 。若未满足条件，就放入readyAsyncCalls准备队列，等待请求主机少于最大值再依次放入调用数组和线程池中 。
 + 不管是同步还是异步；都要通过getResponseWithInterceptorChain 方法调用责任链的形式，通过相应的拦截器 去获取 response；
 	> Okhttp实现的拦截器：
 > 1.RetryAndFollowUpInterceptor
@@ -102,13 +111,212 @@
 > 若原本栈中存在该页号，就把该页号直接移动到栈顶；
 > **Glide的图片缓存的调度算法也是用LRU，是基于一个LinkedHashMap实现的**
 
-在拦截器CacheInterceptor建立连接之前，我们检查响应是否已经被缓存、缓存是否可用，如果是则直接返回缓存的数据，否则就进行后面的流程，并在返回之前，把网络的数据写入缓存；
+#### CacheInterceptor 实现细节
+
+```java
+@Override public Response intercept(Chain chain) throws IOException {
+    //默认cache为null,可以配置cache,不为空尝试获取缓存中的response
+    Response cacheCandidate = cache != null
+        ? cache.get(chain.request())
+        : null;
+
+    long now = System.currentTimeMillis();
+    //根据response,time,request创建一个缓存策略，用于判断怎样使用缓存
+    CacheStrategy strategy = new CacheStrategy.Factory(now, chain.request(), cacheCandidate).get();
+    Request networkRequest = strategy.networkRequest;
+    Response cacheResponse = strategy.cacheResponse;
+
+    if (cache != null) {
+      cache.trackResponse(strategy);
+    }
+
+    if (cacheCandidate != null && cacheResponse == null) {
+      closeQuietly(cacheCandidate.body()); // The cache candidate wasn't applicable. Close it.
+    }
+
+    // If we're forbidden from using the network and the cache is insufficient, fail.
+    //如果缓存策略中禁止使用网络，并且缓存又为空，则构建一个Resposne直接返回，注意返回码=504
+    if (networkRequest == null && cacheResponse == null) {
+      return new Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(504)
+          .message("Unsatisfiable Request (only-if-cached)")
+          .body(Util.EMPTY_RESPONSE)
+          .sentRequestAtMillis(-1L)
+          .receivedResponseAtMillis(System.currentTimeMillis())
+          .build();
+    }
+
+    // If we don't need the network, we're done.
+    //不使用网络，但是又缓存，直接返回缓存
+    if (networkRequest == null) {
+      return cacheResponse.newBuilder()
+          .cacheResponse(stripBody(cacheResponse))
+          .build();
+    }
+
+    Response networkResponse = null;
+    try {
+      //直接走后续过滤器
+      networkResponse = chain.proceed(networkRequest);
+    } finally {
+      // If we're crashing on I/O or otherwise, don't leak the cache body.
+      //保证缓存不会因为，I/O这样的阻塞事件发生而影响泄漏
+      if (networkResponse == null && cacheCandidate != null) {
+        closeQuietly(cacheCandidate.body());
+      }
+    }
+
+    // If we have a cache response too, then we're doing a conditional get.
+    //当缓存响应和网络响应同时存在的时候，选择用哪个
+    if (cacheResponse != null) {
+      if (networkResponse.code() == HTTP_NOT_MODIFIED) {
+        //如果返回码是304，客户端有缓冲的文档并发出了一个条件性的请求（一般是提供If-Modified-Since头表示客户
+        // 只想比指定日期更新的文档）。服务器告诉客户，原来缓冲的文档还可以继续使用。
+        //则使用缓存的响应
+        Response response = cacheResponse.newBuilder()
+            .headers(combine(cacheResponse.headers(), networkResponse.headers()))
+            .sentRequestAtMillis(networkResponse.sentRequestAtMillis())
+            .receivedResponseAtMillis(networkResponse.receivedResponseAtMillis())
+            .cacheResponse(stripBody(cacheResponse))
+            .networkResponse(stripBody(networkResponse))
+            .build();
+        networkResponse.body().close();
+
+        // Update the cache after combining headers but before stripping the
+        // Content-Encoding header (as performed by initContentStream()).
+        cache.trackConditionalCacheHit();
+        cache.update(cacheResponse, response);
+        return response;
+      } else {
+        closeQuietly(cacheResponse.body());
+      }
+    }
+    //使用网络响应
+    Response response = networkResponse.newBuilder()
+        .cacheResponse(stripBody(cacheResponse))
+        .networkResponse(stripBody(networkResponse))
+        .build();
+    //所以默认创建的OkHttpClient是没有缓存的
+    if (cache != null) {
+      //将响应缓存
+      if (HttpHeaders.hasBody(response) && CacheStrategy.isCacheable(response, networkRequest)) {
+        // Offer this request to the cache.
+        //缓存Resposne的Header信息
+        CacheRequest cacheRequest = cache.put(response);
+        //缓存body
+        return cacheWritingResponse(cacheRequest, response);
+      }
+      //只能缓存GET....不然移除request
+      if (HttpMethod.invalidatesCache(networkRequest.method())) {
+        try {
+          cache.remove(networkRequest);
+        } catch (IOException ignored) {
+          // The cache cannot be written.
+        }
+      }
+    }
+
+    return response;
+  }
+```
+其中的 `InternalCache cache` 在构造函数被赋值，传入的对象就是 OkHttpClient ；所以这就导致了如果你需要OkHttp进行缓存操作的话，就需要在 Client 构造的时候，进行构造：`OkHttpClient client = new OkHttpClient.Builder()
+        .cache(cache)
+        .build();
+`
+对于一开始的缓存的获取：
+```java
+Response cacheCandidate = cache != null
+        ? cache.get(chain.request())
+        : null;
+```
+
+其中的 cache . get（）方法存在于实现了 IntemalCache接口的 Cache 类。
+通过 对 requset.Url 进行取相应的 key 值，作为缓存的获取键值；
+get（）主要操作：
++ 初始化日志文件和 lruEntries
++ 检查保证key正确后获取缓存中保存的Entry
++ 操作计数器+1
++ 往日记文件中写入这次Read 操作
++ 根据 readunbdantOpCount 判断是否需要清理日志信息；
++ 需要则开启线程清理；
++ 不需要则返回缓存；
+
+那么缓存的具体取用：
++ 通过执行DiskLruCache 的 get方法 拿到  snapshort
++ 从 snapshort 中的 cleanFiles[0] 中保存的头信息，构建相关的信息的Entry；
++ 从 cleanFiles[1] 构建 body 信息，最终构建成缓存中保存的 Response;
++ 返回 缓存中的 Response ；
+
+##### CacheInterceptor 的主要流程：
+1.通过Request 尝试到 Cache 中拿缓存（流程由上所述），前提是开启了缓存的设置；
+2. 根据 response，time，request 创建一个缓存策略，用于判断如何使用内存；
+3. 如果缓存策略中设置禁止使用网络，并且缓存又为空，则构建一个Response 直接返回 304（页面未更新）；
+4. 禁止网络，但是有缓存，直接返回缓存；
+5. 接着去执行过滤器流程， chain.proceed(networkRequest);
+6. 当缓存存在的时候，如果网络返回 Response 为 304，就使用缓存的 Response；
+7. 构建网络请求的Response；
+8. 当设置了缓存需求，就把新的Response 缓存，先缓存 header ，再缓存 body
+9. 返回相应的 Response;
+
+> okHttp的开发者认为，从效率角度考虑，最好不要支持POST请求的缓存，暂时只要支持GET形式的缓存,源码如下。
+
+
+```java
+@Nullable CacheRequest put(Response response) {
+    String requestMethod = response.request().method();
+
+    if (HttpMethod.invalidatesCache(response.request().method())) {
+      //OKhttp只能缓存GET请求！。。。
+      try {
+        remove(response.request());
+      } catch (IOException ignored) {
+        // The cache cannot be written.
+      }
+      return null;
+    }
+    if (!requestMethod.equals("GET")) {
+      //OKhttp只能缓存GET请求！。。。
+      // Don't cache non-GET responses. We're technically allowed to cache
+      // HEAD requests and some POST requests, but the complexity of doing
+      // so is high and the benefit is low.
+      return null;
+    }
+
+    if (HttpHeaders.hasVaryAll(response)) {
+      return null;
+    }
+
+    Entry entry = new Entry(response);
+    DiskLruCache.Editor editor = null;
+    try {
+      editor = cache.edit(key(response.request().url()));
+      if (editor == null) {
+        return null;
+      }
+      //缓存了Header信息
+      entry.writeTo(editor);
+      return new CacheRequestImpl(editor);
+    } catch (IOException e) {
+      abortQuietly(editor);
+      return null;
+    }
+  }
+```
+
+在拦截器CacheInterceptor向下分发Resqust 执行责任链操作之前，我们检查响应是否已经被缓存、缓存是否可用，时效性的保证是网络请求返回头所携带的 Cache-Control 对应的属性值决定 ， 但是返回头如果不存在该信息的设定，你又想实现这个有效的时间控制保活的机制，那么可以添加自定义的拦截器，实现人为的添加 Reponse 中的请求头，再把其返回给下层处理；
+
+如果可用则直接返回缓存的数据，否则就进行后面的流程，并在返回之前，把网络的数据写入缓存；
+
+在执行缓存的流程的过程中，涉及到 journalFile 这个日志文件，就是为了记录缓存一系列的一些操作；
 
 内存管理：
 主要涉及 HTTP 协议缓存细节的实现，而具体的缓存逻辑 OkHttp 内置封装了一个 Cache 类，它利用 DiskLruCache，用磁盘上的有限大小空间进行缓存，按照 LRU（最近最久未使用） 算法进行缓存淘汰；
 
 > 我们可以在进行OkHttpClient构造时，设置Cache对象，指定目录和缓存大小；
 > 也可以自定义一个实现了InternalCache接口的拦截器，在里面实现自定义的缓存策略；
+
 ## Retrofits
 > Retrofit是一个基于OkHttp实现的网络请求框架；
 > 网络请求的工作本质是由OkHttp完成的，而Retrofit仅负责网络请求接口的封装；
@@ -151,7 +359,6 @@
 > 因为对接口的所有方法的调用都会集中转发到 InvocationHandler#invoke 函数中，我们可以集中进行处理，更方便了
 
 ```java
-
 @Override public Object invoke(Object proxy, Method method, Object... args)
               throws Throwable {
             // If the method is a method from Object then defer to normal invocation.
@@ -172,7 +379,6 @@
             OkHttpCall okHttpCall = new OkHttpCall<>(serviceMethod, args);
             return serviceMethod.callAdapter.adapt(okHttpCall);
           }
-          
 ```
 
 
