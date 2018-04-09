@@ -23,7 +23,7 @@ Android 消息机制
 4. 返回到Handler所在线程，目标Handler 收到消息，调用	handleMessage	方法，接收消息，处理消息。
 
 [Handler ——线程间通信，图解：](http://chuantu.biz/t6/193/1514818188x-1404795856.png)
-![enter image description here](https://github.com/kiboooo/-/blob/master/Android%E6%B6%88%E6%81%AF%E6%9C%BA%E5%88%B6.png?raw=true)
+![enter image description here](http://chuantu.biz/t6/193/1514818188x-1404795856.png)
 
 ### Handler内存泄漏解决办法
 > 内存泄漏的原因：
@@ -33,7 +33,6 @@ Android 消息机制
 >  例如 Handler 中的 enqueueMessage 方法中， msg.target = this 把 Handler 的引用传递给了 target，只有道 recycleUnchecked 方法， 这个引用才会被释放；
 
 由于知道了导致这种现象的原因，我们可以从两个方面解决：
-
 ##### 1. 使用静态内部类+弱引用的形式，解决外部强引用持有的问题；
 因为弱引用只要发生GC就可以保证被回收；
 示例：
@@ -66,10 +65,10 @@ Android 消息机制
         myHandler.removeCallbacksAndMessages(null);  
     }  
 ```
-
 #### HandlerThread : 自带 looper，handler ，Messager 的子线程；
 > HandlerThread 源码中，利用 wait 和 notifyAll（）的方法，控制了UI线程 和 开启的子线程同步性；
 > 会自主创建线程 ，  looper， handler 和 messageQueue；处理消息，以及当任务执行完成后就会自动销毁； 
+> 适用于 后台只进行下载逻辑，以及异步执行数据处理，耗时操作等；
 
 使用方法：
 ```java
@@ -109,3 +108,49 @@ public void run() {
 
 ##### 获取Looper 的时候为什么要延时？
 因为创建 Looper 是再子线程中 需要用 wait 命令 等到 Looper 的创建完成；才能从UI线程中获取才不会出错；
+
+##### 为什么Looper.loop() 这个死循环不会卡死主线程？
+> ###### 卡死主线程的操作是在回调 onCreate/onStart/onResume等操作时间过长，会导致掉帧，甚至发生ANR,loop 本身并不会卡死应用；
+>
+> 首先ActivityThread 并不是一个 Thread ，实质上是运行在 JVM 分配的线程中的 final 类；
+> epoll + pipe （事件分发+管道）一种由事件驱动调度CPU的机制，有消息就依次分发执行，没有消息就阻塞在管道的读取端，让出 CPU ；等待有消息的时候， epoll 就会通过pipe管道去唤醒；
+
+因为Android的消息机制是通过 Looper.loop无限循环，对消息队列中的消息进行不断的获取调用的，UI线程中的一切操作，都是通过 Handler 去发送消息到 死循环的消息队列中，通过消息的分发进行响应操作；同时这也是一种UI线程保活的一种措施；
+
+那么对于非应用中的一些事务操作，是通过新建的 Binder 线程进行驱动管理的；
+```java
+public static void main(String[] args) {
+        //创建Looper和MessageQueue对象，用于处理主线程的消息
+        Looper.prepareMainLooper();
+
+        //创建ActivityThread对象
+        ActivityThread thread = new ActivityThread(); 
+
+        //建立Binder通道 (创建新线程)
+        thread.attach(false);
+
+        Looper.loop(); //消息循环运行
+        throw new RuntimeException("Main thread loop unexpectedly exited");
+    }
+```
+##### 其中 thread.attach(false); 创建一个Binder线程（具体指 ApplicationThread ），该Binder 线程通过Handler 将 Message 发送给主线程。
+每个App进程中至少会有两个 binder 线程 ApplicationThread 和 ActivityManagerProxy
+
+当消息队列没有消息的时候，loop 方法中的 msg.next( )  会设定运行时间 timeout = -1；那么 nativePollOnce（）这个 nactive 的方法进行阻塞；它利用了 eopll （事件分发）机制在管道的读取端进行  wait 等待，让出CPU去处理别的逻辑，等有消息的时候唤醒读取；
+比如 ： 屏幕 16ms 刷新一次，点击事件等就会去唤醒 epoll ；
+
+总结： 
++ handler 机制是使用 pipe （Linux 管道）来实现的；
++ 当消息队列中的消息为空的时候，会阻塞管道的读取端，让出CPU权限；
++ Binder线程会往主线程的消息队列添加消息，然后管道写端写上一个字节，便可以唤醒主线程从管道读端返回，那么 queue.next( ) 会调用返回；
++ 然后 dispatchMessage（） 中调用 onCreate , onResume，等相应的生命周期回应； 
+ 
+
+
+
+
+
+
+
+
+
