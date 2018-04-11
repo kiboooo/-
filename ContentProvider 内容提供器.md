@@ -86,6 +86,25 @@ public Cursor query(Uri uri, String[] projection, String selection,	String[] sel
 根据 URI 匹配 ContentProvider 中对应的数据表；
 + ContentObserver
 观察 URI 引起的 ContentProvider 中数据的变化，并通知外界；
+> 观察一个 ContentProvider 中数据改变情况，可以通过 ContentResolver 的 registerContentObserver 方法来注册观察者，通过 unregisterContentObserver  解除观察者；
+```java
+// 步骤1：注册内容观察者ContentObserver
+    getContentResolver().registerContentObserver（uri）；
+    // 通过ContentResolver类进行注册，并指定需要观察的URI
+
+// 步骤2：当该URI的ContentProvider数据发生变化时，通知外界（即访问该ContentProvider数据的访问者）
+    public class UserContentProvider extends ContentProvider { 
+      public Uri insert(Uri uri, ContentValues values) { 
+      db.insert("user", "userid", values); 
+      getContext().getContentResolver().notifyChange(uri, null); 
+      // 通知访问者
+   } 
+}
+
+// 步骤3：解除观察者
+ getContentResolver().unregisterContentObserver（uri）；
+    // 同样需要通过ContentResolver类进行解除
+```
 
 #### ContentProvider 不仅用来解决进程中通信，同时也适用于进程内通信；
 
